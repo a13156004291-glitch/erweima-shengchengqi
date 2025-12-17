@@ -118,24 +118,21 @@ export default function QRCodeViewer({ config }: { config: QRConfig }) {
       ctx.fillStyle = config.background.color;
       ctx.fillRect(0, 0, totalSize, totalSize);
 
-      // 2. 绘制三个定位块 (必须精确匹配背景色)
+      // 2. 绘制三个定位块
       const drawEye = (x: number, y: number, pos: 'tl' | 'tr' | 'bl') => {
         const s = pixelSize;
         ctx.save();
         ctx.translate(x, y);
         
-        // 外部大框
         ctx.fillStyle = config.corners.outerColor;
         drawEyePath(ctx, 7 * s, config.corners.type, pos);
         
-        // 中间环：强制使用当前背景色填充，修复颜色不对的问题
         ctx.fillStyle = config.background.color;
         ctx.save();
         ctx.translate(s, s);
         drawEyePath(ctx, 5 * s, config.corners.type, pos);
         ctx.restore();
         
-        // 内芯
         ctx.fillStyle = config.corners.innerColor;
         ctx.save();
         ctx.translate(2 * s, 2 * s);
@@ -239,6 +236,17 @@ export default function QRCodeViewer({ config }: { config: QRConfig }) {
     } catch (e) { console.error("渲染失败:", e); }
   }, [config, logoImg, runDiagnostics]);
 
+  const handleDownload = () => {
+    if (!canvasRef.current) return;
+    const dataUrl = canvasRef.current.toDataURL('image/png', 1.0);
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `qrcode-architect-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
     setIsRendering(true);
     const timer = setTimeout(() => { render(); setIsRendering(false); }, 50);
@@ -256,7 +264,7 @@ export default function QRCodeViewer({ config }: { config: QRConfig }) {
       
       <div className="grid grid-cols-2 gap-4">
         <button 
-          onClick={() => canvasRef.current && window.open(canvasRef.current.toDataURL('image/png', 1.0))}
+          onClick={handleDownload}
           className="py-5 bg-slate-900 hover:bg-black text-white rounded-3xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95"
         >
           <Download size={16} strokeWidth={3} /> 下载作品

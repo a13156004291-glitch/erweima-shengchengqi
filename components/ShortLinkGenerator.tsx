@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
-import { Link, Copy, Check, ArrowRight, AlertCircle, Zap, ShieldCheck } from 'lucide-react';
+import { Link, Copy, Check, ArrowRight, AlertCircle, Zap, ShieldCheck, RotateCcw } from 'lucide-react';
 
 interface ShortLinkGeneratorProps {
+  originalUrl: string;
   onShortLinkCreated: (shortUrl: string) => void;
+  onReset: () => void;
 }
 
-const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ onShortLinkCreated }) => {
-  const [url, setUrl] = useState('');
+const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ originalUrl, onShortLinkCreated, onReset }) => {
+  const [inputUrl, setInputUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [shortened, setShortened] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -22,26 +24,38 @@ const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ onShortLinkCrea
     }
   };
 
-  const handleShorten = () => {
+  const handleShorten = async () => {
     setError(null);
-    if (!url) return;
+    if (!inputUrl) return;
     
-    if (!validateUrl(url)) {
+    const targetUrl = inputUrl.startsWith('http') ? inputUrl : `https://${inputUrl}`;
+    if (!validateUrl(targetUrl)) {
       setError('请输入有效的网址 (需包含 http/https)');
       return;
     }
 
     setIsLoading(true);
     
-    // 模拟云端短链接生成
-    setTimeout(() => {
+    try {
+      // 使用真实的 TinyURL API 以确保短链接真实有效
+      const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(targetUrl)}`);
+      if (response.ok) {
+        const shortUrl = await response.text();
+        setShortened(shortUrl);
+        onShortLinkCreated(shortUrl);
+      } else {
+        throw new Error('服务繁忙');
+      }
+    } catch (err) {
+      // 降级策略：如果 API 失败，使用本地模拟
       const randomCode = Math.random().toString(36).substring(2, 8);
-      const mockShortUrl = `https://qr.link/${randomCode}`;
-      
-      setShortened(mockShortUrl);
-      onShortLinkCreated(mockShortUrl);
+      const mockUrl = `${window.location.origin}/s/${randomCode}`;
+      setShortened(mockUrl);
+      onShortLinkCreated(mockUrl);
+      setError('短链接 API 响应异常，已生成预览链接');
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   const copyToClipboard = () => {
@@ -50,6 +64,12 @@ const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ onShortLinkCrea
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleReset = () => {
+    setShortened(null);
+    setInputUrl('');
+    onReset();
   };
 
   return (
@@ -63,7 +83,7 @@ const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ onShortLinkCrea
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 rounded-full border border-green-100">
            <ShieldCheck size={12} className="text-green-600" />
-           <span className="text-[10px] font-black text-green-700 uppercase tracking-tighter">100% 成功率保障</span>
+           <span className="text-[10px] font-black text-green-700 uppercase tracking-tighter">全球可用短链</span>
         </div>
       </div>
       
@@ -71,15 +91,15 @@ const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ onShortLinkCrea
         <div className="relative group">
           <input
             type="text"
-            value={url}
-            onChange={(e) => { setUrl(e.target.value); setError(null); }}
+            value={inputUrl}
+            onChange={(e) => { setInputUrl(e.target.value); setError(null); }}
             onKeyDown={(e) => e.key === 'Enter' && handleShorten()}
-            placeholder="粘贴长链接，极速简化码面密度..."
+            placeholder="粘贴长链接，通过短链降低二维码复杂度..."
             className={`w-full pl-4 pr-14 py-4 bg-slate-50 border-2 ${error ? 'border-red-200 ring-4 ring-red-50' : 'border-slate-50 group-hover:border-indigo-100 focus:border-indigo-500'} rounded-2xl text-sm outline-none transition-all placeholder:text-slate-400 font-medium`}
           />
           <button
             onClick={handleShorten}
-            disabled={!url || isLoading}
+            disabled={!inputUrl || isLoading}
             className="absolute right-2 top-2 bottom-2 bg-slate-900 hover:bg-black text-white px-3.5 rounded-xl transition-all disabled:opacity-50 active:scale-90 shadow-lg group-hover:scale-105"
           >
             {isLoading ? (
@@ -98,25 +118,34 @@ const ShortLinkGenerator: React.FC<ShortLinkGeneratorProps> = ({ onShortLinkCrea
         )}
 
         {shortened && (
-          <div className="flex items-center justify-between p-4 bg-gradient-to-br from-slate-900 to-indigo-900 rounded-2xl animate-in zoom-in-95 duration-300 shadow-xl">
-            <div className="flex flex-col">
-              <span className="text-[10px] text-indigo-300 font-black uppercase tracking-[0.15em] mb-1">内容密度已降至最低</span>
-              <span className="text-sm font-bold text-white truncate max-w-[180px]">{shortened}</span>
+          <div className="flex items-center justify-between p-4 bg-gradient-to-br from-slate-900 to-indigo-900 rounded-2xl animate-in zoom-in-95 duration-300 shadow-xl overflow-hidden relative">
+            <div className="flex flex-col z-10">
+              <span className="text-[10px] text-indigo-300 font-black uppercase tracking-[0.15em] mb-1">已成功压缩码面内容</span>
+              <span className="text-sm font-bold text-white truncate max-w-[200px]">{shortened}</span>
             </div>
-            <button
-              onClick={copyToClipboard}
-              className={`flex items-center gap-2 text-xs font-black px-5 py-2.5 rounded-xl transition-all active:scale-95 ${copied ? 'bg-green-500 text-white' : 'bg-white text-indigo-900 hover:bg-slate-50'}`}
-            >
-              {copied ? <Check size={16} strokeWidth={3} /> : <Copy size={16} strokeWidth={3} />}
-              {copied ? '完成' : '复制'}
-            </button>
+            <div className="flex gap-2 z-10">
+              <button
+                onClick={handleReset}
+                title="恢复原链接"
+                className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+              >
+                <RotateCcw size={16} strokeWidth={3} />
+              </button>
+              <button
+                onClick={copyToClipboard}
+                className={`flex items-center gap-2 text-xs font-black px-5 py-2.5 rounded-xl transition-all active:scale-95 ${copied ? 'bg-green-500 text-white' : 'bg-white text-indigo-900 hover:bg-slate-50'}`}
+              >
+                {copied ? <Check size={16} strokeWidth={3} /> : <Copy size={16} strokeWidth={3} />}
+                {copied ? '完成' : '复制'}
+              </button>
+            </div>
           </div>
         )}
       </div>
       
       <p className="text-[10px] text-slate-400 font-bold leading-relaxed px-1 flex items-center gap-2">
         <Zap size={12} className="text-amber-500 shrink-0" />
-        <span>提示：艺术化二维码极易因码点过细导致无法对焦。压缩链接可使码点增大 40%，实现秒级识别。</span>
+        <span>提示：长链接会导致二维码点阵密集，极难扫描。短链接可使码点增大 40%，实现秒级识别。</span>
       </p>
     </div>
   );
